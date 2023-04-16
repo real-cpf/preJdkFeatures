@@ -1,18 +1,49 @@
 package virtualtask;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
+import java.security.*;
+import java.time.Duration;
+import java.util.concurrent.*;
+import java.util.stream.IntStream;
+
 
 public class SimpleExecutors {
-  public static void main(String[] args) {
-    ExecutorService service = Executors.newVirtualThreadPerTaskExecutor();
+  private final static ThreadFactory factory = Thread.ofVirtual().factory();
+  private final ExecutorService service = Executors.newThreadPerTaskExecutor(factory);
 
-    ExecutorService service1 = Executors.newThreadPerTaskExecutor(new ThreadFactory() {
-      @Override
-      public Thread newThread(Runnable r) {
-        return null;
-      }
+  public static void main(String[] args) throws InterruptedException {
+
+    Thread.Builder.OfVirtual virtual = Thread.ofVirtual();
+    virtual.start(()->{
+      System.out.println(Thread.currentThread());
+    }).join();
+
+  }
+  public static void simple() {
+
+    SimpleExecutors executors = new SimpleExecutors();
+    IntStream.range(0,10_000).forEach(i->{
+      executors.runAsync(()->{
+        System.out.printf("start [%d] %n" +Thread.currentThread(),i);
+        try {
+          TimeUnit.SECONDS.sleep(1);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+        System.out.printf("end [%d] %n" + Thread.currentThread(),i);
+      });
     });
+
+    executors.shutdown();
+    try {
+      TimeUnit.SECONDS.sleep(15);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  public void shutdown(){
+    service.shutdown();
+  }
+  public CompletableFuture<Void>  runAsync(Runnable runnable){
+    return CompletableFuture.runAsync(runnable,service);
   }
 }
